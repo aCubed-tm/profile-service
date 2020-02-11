@@ -25,6 +25,53 @@ func newClient() *dgo.Dgraph {
 	)
 }
 
+func getProfileForUuid(ctx context.Context, uuid){
+	c := newClient()
+
+	variables := map[string]string{"$uuid": uuid}
+	q := `
+		query x($uuid: string){
+			account(func: eq(uuid, $uuid)) {
+				uid
+				uuid
+				profile {
+					uid
+					firstName
+					lastName
+				}
+			}
+		}
+	`
+	
+	txn := c.NewTxn()
+	resp, err := txn.QueryWithVars(ctx, q, variables)
+	if err != nil {
+		return err
+	}
+
+	var decode struct {
+		All []struct {
+			Uid string `json:"uid"`
+			Uuid string `json:"uuid"`
+			Profile struct {
+				Uid string `json:"uid"`
+				FirstName string `json:"firstName"`
+				LastName string `json:"lastName"`
+			}`json:"profile"`
+		} `json:"uuid"`
+	}
+	log.Println("JSON: " + string(resp.GetJson()))
+	if err := json.Unmarshal(resp.GetJson(), &decode); err != nil {
+		return err
+	}
+
+	if len(decode.All) == 0 {
+		return errors.New("couldn't find account by uid")
+	}
+
+	return decode.All[0].Profile, nil
+}
+
 func UpdateProfileForUuid(ctx context.Context, uuid, firstName, lastName string) error {
 	c := newClient()
 
