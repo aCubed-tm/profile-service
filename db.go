@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"github.com/neo4j/neo4j-go-driver/neo4j"
 )
 
@@ -31,9 +32,9 @@ func newSession(accessMode neo4j.AccessMode) neo4j.Session {
 	return session
 }
 
-func CreateProfileForUuid(uuid, firstName, lastName, description string) error {
-	query := "MATCH (a:Account{uuid:{uuid}}) CREATE (a)-[:HAS_PROFILE]->(p:Profile{firstName: {firstName}, name: {name}, description: {description}})"
-	variables := map[string]interface{}{"uuid": uuid, "firstName": firstName, "name": lastName, "description": description}
+func CreateProfileForUuid(uuid, profileUuid, firstName, lastName, description string) error {
+	query := "MATCH (a:Account{uuid:{accountUuid}}) CREATE (a)-[:HAS_PROFILE]->(p:Profile{uuid: {profileUuid}, firstName: {firstName}, name: {name}, description: {description}})"
+	variables := map[string]interface{}{"accountUuid": uuid, "profileUuid": profileUuid, "firstName": firstName, "name": lastName, "description": description}
 	return Write(query, variables)
 }
 
@@ -58,6 +59,10 @@ func GetProfileByUuid(uuid string) (firstName, lastName, description string, err
 		return "", "", "", err
 	}
 
+	if obj == nil {
+		return "", "", "", errors.New("couldn't find profile")
+	}
+
 	p := obj.(profile)
 	return p.firstName, p.lastName, p.description, nil
 }
@@ -68,15 +73,14 @@ func UpdateProfileForUuid(uuid, firstName, lastName, description string) error {
 	return Write(query, variables)
 }
 
-// -------
-func CreateOrganizationProfileForUuid(uuid, displayName, description string) error {
-	query := "MATCH (a:Organisation{uuid:{uuid}}) CREATE (a)-[:HAS_PROFILE]->(p:Profile{name: {name}, description: {description}})"
-	variables := map[string]interface{}{"uuid": uuid, "name": displayName, "description": description}
+func CreateOrganizationProfileForUuid(uuid, profileUuid, displayName, description string) error {
+	query := "MATCH (a:Organisation{uuid:{uuid}}) CREATE (a)-[:HAS_PROFILE]->(p:Profile{uuid: {profileUuid}, displayName: {name}, description: {description}})"
+	variables := map[string]interface{}{"uuid": uuid, "profileUuid": profileUuid, "name": displayName, "description": description}
 	return Write(query, variables)
 }
 
 func GetOrganizationProfileByUuid(uuid string) (displayName, description string, err error) {
-	query := "MATCH (a:Organisation{uuid:{uuid}})-[:HAS_PROFILE]->(p:Profile) RETURN p.name, p.description"
+	query := "MATCH (a:Organisation{uuid:{uuid}})-[:HAS_PROFILE]->(p:Profile) RETURN p.displayName, p.description"
 	variables := map[string]interface{}{"uuid": uuid}
 
 	type profile struct {
@@ -95,12 +99,16 @@ func GetOrganizationProfileByUuid(uuid string) (displayName, description string,
 		return "", "", err
 	}
 
+	if obj == nil {
+		return "", "", errors.New("couldn't find profile")
+	}
+
 	p := obj.(profile)
 	return p.displayName, p.description, nil
 }
 
 func UpdateOrganizationProfileForUuid(uuid, displayName, description string) error {
-	query := "MATCH (:Organisation{uuid:{uuid}})-[:HAS_PROFILE]->(p:Profile) SET p.name={name}, p.description={description}"
+	query := "MATCH (:Organisation{uuid:{uuid}})-[:HAS_PROFILE]->(p:Profile) SET p.displayName={name}, p.description={description}"
 	variables := map[string]interface{}{"uuid": uuid, "name": displayName, "description": description}
 	return Write(query, variables)
 }

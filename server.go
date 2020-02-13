@@ -2,13 +2,16 @@ package main
 
 import (
 	"context"
+
 	pb "github.com/acubed-tm/profile-service/protofiles"
+	googleUuid "github.com/google/uuid"
 )
 
 type server struct{}
 
 func (s *server) CreateProfile(_ context.Context, req *pb.CreateProfileRequest) (*pb.CreateProfileReply, error) {
-	err := CreateProfileForUuid(req.Uuid, req.FirstName, req.LastName, req.Description)
+	profileUuid := googleUuid.New().String()
+	err := CreateProfileForUuid(req.Uuid, profileUuid, req.FirstName, req.LastName, req.Description)
 	if err != nil {
 		return nil, err
 	} else {
@@ -40,7 +43,8 @@ func (*server) UpdateProfile(_ context.Context, req *pb.UpdateProfileRequest) (*
 }
 
 func (s *server) CreateOrganizationProfile(_ context.Context, req *pb.CreateOrganizationProfileRequest) (*pb.CreateOrganizationProfileReply, error) {
-	err := CreateOrganizationProfileForUuid(req.Uuid, req.DisplayName, req.Description)
+	profileUuid := googleUuid.New().String()
+	err := CreateOrganizationProfileForUuid(req.Uuid, profileUuid, req.DisplayName, req.Description)
 	if err != nil {
 		return nil, err
 	} else {
