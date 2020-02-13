@@ -1,0 +1,30 @@
+apiVersion: v1
+kind: Service
+metadata:
+    name: profilems
+    namespace: acubed
+spec:
+    type: LoadBalancer
+    ports:
+    - port: 50551 
+    selector:
+        app: profilems
+---
+apiVersion : apps/v1beta1
+kind: Deployment
+metadata:
+    name: profilems 
+    namespace: acubed
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: profilems 
+    spec:
+      containers:
+        - name: profilems 
+          imagePullPolicy: Always
+          image: acubedcr.azurecr.io/profilems:buddy
+          ports:
+          - containerPort: 50551
