@@ -67,3 +67,40 @@ func UpdateProfileForUuid(uuid, firstName, lastName, description string) error {
 	variables := map[string]interface{}{"uuid": uuid, "firstName": firstName, "name": lastName, "description": description}
 	return Write(query, variables)
 }
+
+// -------
+func CreateOrganizationProfileForUuid(uuid, displayName, description string) error {
+	query := "MATCH (a:Organisation{uuid:{uuid}}) CREATE (a)-[:HAS_PROFILE]->(p:Profile{name: {name}, description: {description}})"
+	variables := map[string]interface{}{"uuid": uuid, "name": displayName, "description": description}
+	return Write(query, variables)
+}
+
+func GetOrganizationProfileByUuid(uuid string) (displayName, description string, err error) {
+	query := "MATCH (a:Organisation{uuid:{uuid}})-[:HAS_PROFILE]->(p:Profile) RETURN p.name, p.description"
+	variables := map[string]interface{}{"uuid": uuid}
+
+	type profile struct {
+		displayName, description string
+	}
+	obj, err := Fetch(query, variables, func(res neo4j.Result) (interface{}, error) {
+		if res.Next() {
+			return profile{
+				displayName: res.Record().GetByIndex(0).(string),
+				description: res.Record().GetByIndex(1).(string),
+			}, nil
+		}
+		return nil, res.Err()
+	})
+	if err != nil {
+		return "", "", err
+	}
+
+	p := obj.(profile)
+	return p.displayName, p.description, nil
+}
+
+func UpdateOrganizationProfileForUuid(uuid, displayName, description string) error {
+	query := "MATCH (:Organisation{uuid:{uuid}})-[:HAS_PROFILE]->(p:Profile) SET p.name={name}, p.description={description}"
+	variables := map[string]interface{}{"uuid": uuid, "name": displayName, "description": description}
+	return Write(query, variables)
+}
