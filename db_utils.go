@@ -30,7 +30,7 @@ func FetchSingle(query string, variables map[string]interface{}) (interface{}, e
 	})
 }
 
-func Fetch(query string, variables map[string]interface{}, fetchFn func(tx neo4j.Result) (interface{}, error)) (interface{}, error) {
+func Fetch(query string, variables map[string]interface{}, fetchFn func(neo4j.Result) (interface{}, error)) (interface{}, error) {
 	return newSessionRead().ReadTransaction(func(transaction neo4j.Transaction) (interface{}, error) {
 		result, err := transaction.Run(query, variables)
 		if err != nil {

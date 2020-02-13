@@ -31,6 +31,37 @@ func newSession(accessMode neo4j.AccessMode) neo4j.Session {
 	return session
 }
 
+func CreateProfileForUuid(uuid, firstName, lastName, description string) error {
+	query := "MATCH (a:Account{uuid:{uuid}}) CREATE (a)-[:HAS_PROFILE]->(p:Profile{firstName: {firstName}, name: {name}, description: {description}})"
+	variables := map[string]interface{}{"uuid": uuid, "firstName": firstName, "name": lastName, "description": description}
+	return Write(query, variables)
+}
+
+func GetProfileByUuid(uuid string) (firstName, lastName, description string, err error) {
+	query := "MATCH (a:Account{uuid:{uuid}})-[:HAS_PROFILE]->(p:Profile) RETURN p.firstName, p.name, p.description"
+	variables := map[string]interface{}{"uuid": uuid}
+
+	type profile struct {
+		firstName, lastName, description string
+	}
+	obj, err := Fetch(query, variables, func(res neo4j.Result) (interface{}, error) {
+		if res.Next() {
+			return profile{
+				firstName:   res.Record().GetByIndex(0).(string),
+				lastName:    res.Record().GetByIndex(1).(string),
+				description: res.Record().GetByIndex(2).(string),
+			}, nil
+		}
+		return nil, res.Err()
+	})
+	if err != nil {
+		return "", "", "", err
+	}
+
+	p := obj.(profile)
+	return p.firstName, p.lastName, p.description, nil
+}
+
 func UpdateProfileForUuid(uuid, firstName, lastName, description string) error {
 	query := "MATCH (:Account{uuid:{uuid}})-[:HAS_PROFILE]->(p:Profile) SET p.firstName={firstName}, p.name={name}, p.description={description}"
 	variables := map[string]interface{}{"uuid": uuid, "firstName": firstName, "name": lastName, "description": description}
