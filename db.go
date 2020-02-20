@@ -1,89 +1,114 @@
 package main
 
 import (
-	"context"
-	"encoding/json"
 	"errors"
-	"github.com/dgraph-io/dgo/v2"
-	"github.com/dgraph-io/dgo/v2/protos/api"
-	"google.golang.org/grpc"
-	"log"
+	"github.com/neo4j/neo4j-go-driver/neo4j"
 )
 
-const databaseUrl = "my-release-dgraph-alpha.acubed:9080"
+const databaseUrl = "bolt://neo4j-public.default:7687"
+const username = "neo4j"
+const password = ""
 
-func newClient() *dgo.Dgraph {
-	// Dial a gRPC connection. The address to dial to can be configured when
-	// setting up the dgraph cluster.
-	d, err := grpc.Dial(databaseUrl, grpc.WithInsecure())
-	if err != nil {
-		log.Fatal(err)
+var driver neo4j.Driver = nil
+
+func newSession(accessMode neo4j.AccessMode) neo4j.Session {
+	var (
+		err     error
+		session neo4j.Session
+	)
+
+	if driver == nil {
+		driver, err = neo4j.NewDriver(databaseUrl, neo4j.BasicAuth(username, password, ""))
+		if err != nil {
+			panic(err.Error())
+		}
 	}
 
-	return dgo.NewDgraphClient(
-		api.NewDgraphClient(d),
-	)
+	session, err = driver.Session(accessMode)
+	if err != nil {
+		panic(err.Error())
+	}
+
+	return session
 }
 
-func UpdateProfileForUuid(ctx context.Context, uuid, firstName, lastName string) error {
-	c := newClient()
+func CreateProfileForUuid(uuid, profileUuid, firstName, lastName, description string) error {
+	query := "MATCH (a:Account{uuid:{accountUuid}}) CREATE (a)-[:HAS_PROFILE]->(p:Profile{uuid: {profileUuid}, firstName: {firstName}, name: {name}, description: {description}})"
+	variables := map[string]interface{}{"accountUuid": uuid, "profileUuid": profileUuid, "firstName": firstName, "name": lastName, "description": description}
+	return Write(query, variables)
+}
 
-	variables := map[string]string{"$uuid": uuid}
-	q := `
-		query x($uuid: string){
-			account(func: eq(uuid, $uuid)) {
-				uid
-				uuid
-				profile {
-					uid
-					firstName
-					lastName
-				}
-			}
+func GetProfileByUuid(uuid string) (firstName, lastName, description string, err error) {
+	query := "MATCH (a:Account{uuid:{uuid}})-[:HAS_PROFILE]->(p:Profile) RETURN p.firstName, p.name, p.description"
+	variables := map[string]interface{}{"uuid": uuid}
+
+	type profile struct {
+		firstName, lastName, description string
+	}
+	obj, err := Fetch(query, variables, func(res neo4j.Result) (interface{}, error) {
+		if res.Next() {
+			return profile{
+				firstName:   res.Record().GetByIndex(0).(string),
+				lastName:    res.Record().GetByIndex(1).(string),
+				description: res.Record().GetByIndex(2).(string),
+			}, nil
 		}
-	`
-
-	txn := c.NewTxn()
-	resp, err := txn.QueryWithVars(ctx, q, variables)
+		return nil, res.Err()
+	})
 	if err != nil {
-		return err
+		return "", "", "", err
 	}
 
-	var decode struct {
-		All []struct {
-			Uid string `json:"uid"`
-			Uuid string `json:"uuid"`
-			Profile struct {
-				// TODO: not an array? needs uid?
-				Uid string `json:"uid"`
-				FirstName string `json:"firstName"`
-				LastName string `json:"lastName"`
-			} `json:"profile"`
-		} `json:"uuid"`
-	}
-	log.Println("JSON: " + string(resp.GetJson()))
-	if err := json.Unmarshal(resp.GetJson(), &decode); err != nil {
-		return err
+	if obj == nil {
+		return "", "", "", errors.New("couldn't find profile")
 	}
 
-	if len(decode.All) == 0 {
-		return errors.New("couldn't find account by uid")
+	p := obj.(profile)
+	return p.firstName, p.lastName, p.description, nil
+}
+
+func UpdateProfileForUuid(uuid, firstName, lastName, description string) error {
+	query := "MATCH (:Account{uuid:{uuid}})-[:HAS_PROFILE]->(p:Profile) SET p.firstName={firstName}, p.name={name}, p.description={description}"
+	variables := map[string]interface{}{"uuid": uuid, "firstName": firstName, "name": lastName, "description": description}
+	return Write(query, variables)
+}
+
+func CreateOrganizationProfileForUuid(uuid, profileUuid, displayName, description string) error {
+	query := "MATCH (a:Organisation{uuid:{uuid}}) CREATE (a)-[:HAS_PROFILE]->(p:Profile{uuid: {profileUuid}, displayName: {name}, description: {description}})"
+	variables := map[string]interface{}{"uuid": uuid, "profileUuid": profileUuid, "name": displayName, "description": description}
+	return Write(query, variables)
+}
+
+func GetOrganizationProfileByUuid(uuid string) (displayName, description string, err error) {
+	query := "MATCH (a:Organisation{uuid:{uuid}})-[:HAS_PROFILE]->(p:Profile) RETURN p.displayName, p.description"
+	variables := map[string]interface{}{"uuid": uuid}
+
+	type profile struct {
+		displayName, description string
 	}
-
-	// TODO: what if matching failed because we don't have a profile yet? probably want to remove profile from query
-	decode.All[0].Profile.FirstName = firstName
-	decode.All[0].Profile.LastName = lastName
-
-	// insert again
-	out, err := json.Marshal(decode.All[0].Profile)
+	obj, err := Fetch(query, variables, func(res neo4j.Result) (interface{}, error) {
+		if res.Next() {
+			return profile{
+				displayName: res.Record().GetByIndex(0).(string),
+				description: res.Record().GetByIndex(1).(string),
+			}, nil
+		}
+		return nil, res.Err()
+	})
 	if err != nil {
-		return err
+		return "", "", err
 	}
 
-	_, err = txn.Mutate(context.Background(), &api.Mutation{SetJson: out, CommitNow: true})
-	if err != nil {
-		return err
+	if obj == nil {
+		return "", "", errors.New("couldn't find profile")
 	}
 
-	return nil
+	p := obj.(profile)
+	return p.displayName, p.description, nil
+}
+
+func UpdateOrganizationProfileForUuid(uuid, displayName, description string) error {
+	query := "MATCH (:Organisation{uuid:{uuid}})-[:HAS_PROFILE]->(p:Profile) SET p.displayName={name}, p.description={description}"
+	variables := map[string]interface{}{"uuid": uuid, "name": displayName, "description": description}
+	return Write(query, variables)
 }
