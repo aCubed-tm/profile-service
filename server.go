@@ -73,3 +73,15 @@ func (*server) UpdateOrganizationProfile(_ context.Context, req *pb.UpdateOrgani
 		return &pb.UpdateOrganizationProfileReply{}, nil
 	}
 }
+
+func (*server) GetEmails(_ context.Context, req *pb.GetEmailsRequest) (*pb.GetEmailsReply, error) {
+	// note: perhaps check if a field is empty/default?
+	emails, err := GetEmailsByUuid(req.Uuid)
+	if err != nil {
+		return nil, err
+	} else {
+		return &pb.GetEmailsReply{
+			Emails: emails,
+		}, nil
+	}
+}

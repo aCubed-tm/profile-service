@@ -2,7 +2,9 @@ package main
 
 import (
 	"errors"
+	pb "github.com/acubed-tm/profile-service/protofiles"
 	"github.com/neo4j/neo4j-go-driver/neo4j"
+	"log"
 )
 
 const databaseUrl = "bolt://neo4j-public.default:7687"
@@ -111,4 +113,37 @@ func UpdateOrganizationProfileForUuid(uuid, displayName, description string) err
 	query := "MATCH (:Organisation{uuid:{uuid}})-[:HAS_PROFILE]->(p:Profile) SET p.displayName={name}, p.description={description}"
 	variables := map[string]interface{}{"uuid": uuid, "name": displayName, "description": description}
 	return Write(query, variables)
+}
+
+func GetEmailsByUuid(uuid string) ([]*pb.UserEmail, error) {
+	query := "MATCH (e:Email)<-[:HAS_EMAIL]-(:Account{uuid:{uuid}}) RETURN e.emailAddress, e.isPrimary"
+	variables := map[string]interface{}{"uuid": uuid}
+
+	obj, err := Fetch(query, variables, func(res neo4j.Result) (interface{}, error) {
+		var ret []*pb.UserEmail
+		for res.Next() {
+			rec := &pb.UserEmail{
+				Email:     res.Record().GetByIndex(0).(string),
+				IsPrimary: res.Record().GetByIndex(1).(bool),
+			}
+			log.Printf("aaa: %v", rec)
+			ret = append(ret, rec)
+		}
+
+		log.Printf("final len: %v", len(ret))
+		log.Printf("ret int: %v", ret)
+		return ret, nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	if obj == nil {
+		return nil, errors.New("couldn't find account by uuid")
+	}
+
+	log.Printf("returning: %v", obj)
+
+	return obj.([]*pb.UserEmail), nil
 }
