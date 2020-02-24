@@ -4,7 +4,6 @@ import (
 	"errors"
 	pb "github.com/acubed-tm/profile-service/protofiles"
 	"github.com/neo4j/neo4j-go-driver/neo4j"
-	"log"
 )
 
 const databaseUrl = "bolt://neo4j-public.default:7687"
@@ -126,12 +125,9 @@ func GetEmailsByUuid(uuid string) ([]*pb.UserEmail, error) {
 				Email:     res.Record().GetByIndex(0).(string),
 				IsPrimary: res.Record().GetByIndex(1).(bool),
 			}
-			log.Printf("aaa: %v", rec)
 			ret = append(ret, rec)
 		}
 
-		log.Printf("final len: %v", len(ret))
-		log.Printf("ret int: %v", ret)
 		return ret, nil
 	})
 
@@ -142,8 +138,6 @@ func GetEmailsByUuid(uuid string) ([]*pb.UserEmail, error) {
 	if obj == nil {
 		return nil, errors.New("couldn't find account by uuid")
 	}
-
-	log.Printf("returning: %v", obj)
 
 	return obj.([]*pb.UserEmail), nil
 }
