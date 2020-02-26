@@ -115,7 +115,7 @@ func UpdateOrganizationProfileForUuid(uuid, displayName, description string) err
 }
 
 func GetEmailsByUuid(uuid string) ([]*pb.UserEmail, error) {
-	query := "MATCH (e:Email)<-[:HAS_EMAIL]-(:Account{uuid:{uuid}}) RETURN e.emailAddress, e.isPrimary"
+	query := "MATCH (e:Email)<-[:HAS_EMAIL]-(:Account{uuid:{uuid}}) RETURN e.emailAddress, e.isPrimary, e.uuid"
 	variables := map[string]interface{}{"uuid": uuid}
 
 	obj, err := Fetch(query, variables, func(res neo4j.Result) (interface{}, error) {
@@ -124,6 +124,7 @@ func GetEmailsByUuid(uuid string) ([]*pb.UserEmail, error) {
 			rec := &pb.UserEmail{
 				Email:     res.Record().GetByIndex(0).(string),
 				IsPrimary: res.Record().GetByIndex(1).(bool),
+				Uuid: res.Record().GetByIndex(2).(string)
 			}
 			ret = append(ret, rec)
 		}
